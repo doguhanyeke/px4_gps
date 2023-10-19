@@ -34,17 +34,25 @@ if(gz-transport12_FOUND)
 	endif()
 endif()
 
-add_executable(px4_gps_publisher src/px4_gz_gps_publisher.cpp)
-ament_target_dependencies(px4_gps_publisher rclcpp ${Eigen_LIBRARIES}
+add_executable(px4_gps_sim_pub src/px4_gps_sim_pub.cpp)
+add_executable(px4_gps_real_pub src/px4_gps_real_pub.cpp)
+
+ament_target_dependencies(px4_gps_sim_pub rclcpp ${Eigen_LIBRARIES}
                         gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)
 
+ament_target_dependencies(px4_gps_real_pub rclcpp ${Eigen_LIBRARIES}
+                        gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)                        
 # target_link_libraries(px4_gps_publisher gz-sensors7::navsat_multipath)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 install(TARGETS
-  px4_gps_publisher
+px4_gps_sim_pub
+  DESTINATION lib/${PROJECT_NAME})
+  
+install(TARGETS
+px4_gps_real_pub
   DESTINATION lib/${PROJECT_NAME})
   
 # Install launch files.

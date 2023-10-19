@@ -6,10 +6,10 @@ import os
 
 def generate_launch_description():
     package_dir = get_package_share_directory('px4_offboard')
-    px4_gps = Node(
+    px4_gps_node = Node(
            package='px4_gps',
-           executable='px4_gps_publisher',
-           name='px4_gps'
+           executable='px4_gps_real_pub',
+           name='px4_gps_real_pub'
         )
     entity_service = Node(
         package='ros_gz_bridge',
@@ -23,7 +23,7 @@ def generate_launch_description():
            name='mocap_gz_stream'
     ) 
     return LaunchDescription([
-        px4_gps,
+        px4_gps_node,
         entity_service,
         model_pose,
     ])
