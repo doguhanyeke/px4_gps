@@ -2,7 +2,7 @@
 #include <functional>
 #include <memory>
 #include <string>
-
+#include <eigen3/Eigen/Eigen>
 #include <gz/math.hh>
 #include <gz/msgs.hh>
 #include <gz/transport.hh>

@@ -39,10 +39,11 @@ add_executable(px4_gps_real_pub src/px4_gps_real_pub.cpp)
 
 ament_target_dependencies(px4_gps_sim_pub rclcpp ${Eigen_LIBRARIES}
                         gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)
+target_include_directories(px4_gps_sim_pub PUBLIC ${Eigen3_INCLUDE_DIRS})
 
 ament_target_dependencies(px4_gps_real_pub rclcpp ${Eigen_LIBRARIES}
                         gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)                        
-# target_link_libraries(px4_gps_publisher gz-sensors7::navsat_multipath)
+target_include_directories(px4_gps_real_pub PUBLIC ${Eigen3_INCLUDE_DIRS})
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
