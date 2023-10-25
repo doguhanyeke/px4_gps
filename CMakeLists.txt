@@ -9,7 +9,7 @@ endif()
 find_package(rclcpp REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(px4_msgs REQUIRED)
-
+find_package(geometry_msgs REQUIRED)
 # Find the gz_Transport library
 find_package(gz-transport12
 	#REQUIRED COMPONENTS core
@@ -37,9 +37,9 @@ endif()
 add_executable(px4_gps_sim_pub src/px4_gps_sim_pub.cpp)
 add_executable(px4_gps_real_pub src/px4_gps_real_pub.cpp)
 
-ament_target_dependencies(px4_gps_sim_pub rclcpp 
-                        gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)
-target_include_directories(px4_gps_sim_pub PUBLIC ${Eigen3_INCLUDE_DIRS} )
+ament_target_dependencies(px4_gps_sim_pub rclcpp ${Eigen_LIBRARIES}
+                        gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs geometry_msgs)
+target_include_directories(px4_gps_sim_pub PUBLIC ${Eigen3_INCLUDE_DIRS})
 
 ament_target_dependencies(px4_gps_real_pub rclcpp
                         gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)                        

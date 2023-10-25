@@ -6,12 +6,14 @@
 #include <gz/math.hh>
 #include <gz/msgs.hh>
 #include <gz/transport.hh>
+#include <gz/msgs/navsat_multipath.pb.h>
+#include <gz/msgs/pose_v.pb.h>
+
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "px4_msgs/msg/sensor_gps.hpp"
 #include <gz/sensors/NavSatMultipathSensor.hh>
-#include <gz/msgs/navsat_multipath.pb.h>
-
+#include <geometry_msgs/msg/pose.hpp>
 
 using namespace std::chrono_literals;
 
@@ -24,21 +26,20 @@ class PX4GPSSimPublisher : public rclcpp::Node
     PX4GPSSimPublisher()
     : Node("px4_gps_sim_publisher")
     {
-      std::string _world_name = "AbuDhabi";
-      std::string _model_name = "x500_1";
-      std::string _spoofer_model_name = "spoofer";
-      // NavSat: /world/$WORLD/model/$MODEL/link/base_link/sensor/navsat_sensor/navsat
-      std::string navsat_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
-      std::string spoofer_topic = "/world/" + _world_name + "/model/" + _spoofer_model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
-      std::string px4_gps_ros_topic = "/px4_1/fmu/in/vehicle_gps_position";
-
       if (!_node.Subscribe(navsat_topic, &PX4GPSSimPublisher::navsatCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", navsat_topic.c_str());
       }
       if (!_node.Subscribe(spoofer_topic, &PX4GPSSimPublisher::navsatSpooferCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
       }  
-      publisher_ = this->create_publisher<px4_msgs::msg::SensorGps>(px4_gps_ros_topic, 10);  
+      // pose: /world/$WORLD/pose/info
+	    std::string world_pose_topic = "/world/" + _world_name + "/pose/info";
+
+	    if (!_node.Subscribe(world_pose_topic, &PX4GPSSimPublisher::poseInfoCallback, this)) {
+            RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", world_pose_topic.c_str());
+	    }
+      gps_publisher_ = this->create_publisher<px4_msgs::msg::SensorGps>(px4_gps_ros_topic, 10);  
+      gt_publisher_ = this->create_publisher<geometry_msgs::msg::Pose>(px4_gt_ros_topic, 10);
       count=0;
     }
   private:
@@ -77,8 +78,8 @@ class PX4GPSSimPublisher : public rclcpp::Node
         sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
         
         //For spoofing
-        sensor_gps.latitude_deg = spoofer_latitude;
-        sensor_gps.longitude_deg = spoofer_longitude;
+        // sensor_gps.latitude_deg = spoofer_latitude;
+        // sensor_gps.longitude_deg = spoofer_longitude;
       
         sensor_gps.timestamp_time_relative = 0;
         sensor_gps.heading = NAN;
@@ -92,7 +93,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
 
         RCLCPP_ERROR(this->get_logger(),"spoofer latitude inside navsat %lf", spoofer_latitude);
         count++;
-        publisher_->publish(sensor_gps);
+        gps_publisher_->publish(sensor_gps);
     }
 
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
@@ -136,7 +137,25 @@ class PX4GPSSimPublisher : public rclcpp::Node
       RCLCPP_ERROR(this->get_logger(),"spoofer latitude LS navsat %lf", msg_spoofer.latitude_deg());
                 
     }
+    void poseInfoCallback(const gz::msgs::Pose_V &pose)
+    {
+        for (int p = 0; p < pose.pose_size(); p++) {
+          if (pose.pose(p).name() == _model_name) {
+            gz::msgs::Vector3d pose_position = pose.pose(p).position();
+            gz::msgs::Quaternion pose_orientation = pose.pose(p).orientation();
+            geometry_msgs::msg::Pose gt_pose;
+            gt_pose.position.x = pose_position.x();
+            gt_pose.position.y = pose_position.y();
+            gt_pose.position.z = pose_position.z();
+            gt_pose.orientation.x = pose_orientation.x();
+            gt_pose.orientation.y = pose_orientation.y();
+            gt_pose.orientation.z = pose_orientation.z();
+            gt_pose.orientation.w = pose_orientation.w();
+            gt_publisher_->publish(gt_pose);
+          }
+        }
 
+    }
     bool GetLeastSquaresEstimate(std::vector<double> _meas,
                   std::vector<std::vector<double>> _sat_ecef, Eigen::Vector3d &_rec_ecef)
     {
@@ -166,13 +185,24 @@ class PX4GPSSimPublisher : public rclcpp::Node
       } while (dx.norm() > 1e-6 && iter < 10);
       return iter < 10;
     }
-    rclcpp::Publisher<px4_msgs::msg::SensorGps>::SharedPtr publisher_;
+    rclcpp::Publisher<px4_msgs::msg::SensorGps>::SharedPtr gps_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr gt_publisher_;
+
     gz::transport::Node _node;
+
+    std::string _world_name = "AbuDhabi";
+    std::string _model_name = "x500_1";
+    std::string _spoofer_model_name = "spoofer";
+    std::string navsat_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
+    std::string spoofer_topic = "/world/" + _world_name + "/model/" + _spoofer_model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
+    std::string px4_gps_ros_topic = "/px4_1/fmu/in/vehicle_gps_position";
+    std::string px4_gt_ros_topic = "/px4_1/fmu/out/vehicle_gt_pose";
     int count;
     double spoofer_latitude;
     double spoofer_longitude;
     double spoofer_velocity_east;
     double spoofer_velocity_north;
+    
 };
 
 int main(int argc, char * argv[])
