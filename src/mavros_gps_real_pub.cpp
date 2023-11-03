@@ -6,96 +6,60 @@
 #include <gz/math.hh>
 #include <gz/msgs.hh>
 #include <gz/transport.hh>
-#include <gz/msgs/navsat_multipath.pb.h>
-#include <gz/msgs/pose_v.pb.h>
-
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "px4_msgs/msg/sensor_gps.hpp"
+#include "mavros_msgs/msg/hil_gps.hpp"
 #include <gz/sensors/NavSatMultipathSensor.hh>
-#include <geometry_msgs/msg/pose.hpp>
-#include <std_msgs/msg/bool.hpp>
+#include <gz/msgs/navsat_multipath.pb.h>
+
 
 using namespace std::chrono_literals;
 
 /* This example creates a subclass of Node and uses std::bind() to register a
 * member function as a callback from the timer. */
 
-class PX4GPSSimPublisher : public rclcpp::Node
+class PX4GPSRealPublisher : public rclcpp::Node
 {
   public:
-    PX4GPSSimPublisher()
-    : Node("px4_gps_sim_publisher")
+    PX4GPSRealPublisher()
+    : Node("mavros_gps_real_publisher")
     {
-      if (!_node.Subscribe(navsat_topic, &PX4GPSSimPublisher::navsatCallback, this)) {
+      if (!_node.Subscribe(navsat_topic, &PX4GPSRealPublisher::navsatCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", navsat_topic.c_str());
       }
-      if (!_node.Subscribe(spoofer_topic, &PX4GPSSimPublisher::navsatSpooferCallback, this)) {
+      if (!_node.Subscribe(spoofer_topic, &PX4GPSRealPublisher::navsatSpooferCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
       }  
-      gps_publisher_ = this->create_publisher<px4_msgs::msg::SensorGps>(px4_gps_ros_topic, 10);  
-      spoofer_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
-        "/spoofing_flag", 10, std::bind(&PX4GPSSimPublisher::spoofingCallback, this, std::placeholders::_1));
-      count=0;
+      publisher_ = this->create_publisher<mavros_msgs::msg::HilGPS>(mavros_gps_topic, 10);  
     }
   private:
     void navsatCallback(const gz::msgs::NavSatMultipath &navsat)
     {   
-        const uint64_t time_us = (navsat.header().stamp().sec() * 1000000) + (navsat.header().stamp().nsec() / 1000);
         // publish gps
-        auto sensor_gps = px4_msgs::msg::SensorGps();
-        sensor_gps.device_id =11468804; // (Type: 0xAF, SIMULATION:0 (0x00))
-        sensor_gps.timestamp_sample = time_us;
-        sensor_gps.timestamp = time_us;
-
-        sensor_gps.fix_type = 3; // 3D fix
-        sensor_gps.s_variance_m_s = 0.4f;
-        sensor_gps.c_variance_rad = 0.1f;
-        sensor_gps.eph = 0.9f;
-        sensor_gps.epv = 1.78f;
-        sensor_gps.hdop = 0.7f;
-        sensor_gps.vdop = 1.1f;
-
-      
-        sensor_gps.altitude_msl_m = navsat.altitude();
-        sensor_gps.altitude_ellipsoid_m = navsat.altitude();
-        sensor_gps.noise_per_ms = 0;
-        sensor_gps.jamming_indicator = 0;
-        // For normal operations
-        sensor_gps.latitude_deg = navsat.latitude_deg();
-        sensor_gps.longitude_deg = navsat.longitude_deg();
-        sensor_gps.vel_m_s = sqrtf(
+        auto hil_gps = mavros_msgs::msg::HilGPS();
+        // Fill in and send message
+        hil_gps.header.stamp.sec = navsat.header().stamp().sec();                 // [useconds]
+        hil_gps.header.stamp.nanosec = navsat.header().stamp().nsec();  
+        hil_gps.geo.latitude = navsat.latitude_deg();                         // [degrees * 1e7]
+        hil_gps.geo.longitude = navsat.longitude_deg();                         // [degrees * 1e7]
+        hil_gps.geo.altitude = navsat.altitude();    // [meters * 1e3]
+        hil_gps.vel = sqrtf(
                 navsat.velocity_east() * navsat.velocity_east()
                 + navsat.velocity_north() * navsat.velocity_north()
-                + navsat.velocity_up() * navsat.velocity_up());
-        sensor_gps.vel_n_m_s = navsat.velocity_north();
-        sensor_gps.vel_e_m_s = navsat.velocity_east();
-        sensor_gps.vel_d_m_s = -navsat.velocity_up();
-        sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
-        
-        //For spoofing
-        // sensor_gps.latitude_deg = spoofer_latitude;
-        // sensor_gps.longitude_deg = spoofer_longitude;
-      
-        sensor_gps.timestamp_time_relative = 0;
-        sensor_gps.heading = NAN;
-        sensor_gps.heading_offset = NAN;
-        sensor_gps.heading_accuracy = 0;
-        sensor_gps.automatic_gain_control = 0;
-        sensor_gps.jamming_state = 0;
-        sensor_gps.spoofing_state = 0;
-        sensor_gps.vel_ned_valid = true;
-        sensor_gps.satellites_used = 10;
+                + navsat.velocity_up() * navsat.velocity_up())*1e2;            // [cm/s]
+        hil_gps.vn = navsat.velocity_north()*1e2;                                  // [cm/s]
+        hil_gps.ve = navsat.velocity_east()*1e2;                                   // [cm/s]
+        hil_gps.vd = -navsat.velocity_up()*1e2;                                 // [cm/s]
+        hil_gps.cog = atan2(navsat.velocity_east(), navsat.velocity_north()) * 1e2;                                  // [degrees * 1e2]
+        hil_gps.eph = 0.9f * 1e2;                                  // [cm]
+        hil_gps.epv = 1.78f * 1e2;                                  // [cm]
+        hil_gps.fix_type = 3;
+        hil_gps.satellites_visible = 10;
+        RCLCPP_ERROR(this->get_logger(),"navsat latitude LS navsat %lf", navsat.latitude_deg());
 
-        RCLCPP_ERROR(this->get_logger(),"spoofer latitude inside navsat %lf", spoofer_latitude);
-        count++;
-        gps_publisher_->publish(sensor_gps);
+        publisher_->publish(hil_gps);
     }
-    void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg) const
-    {
-      //spoofing_flag = msg->data;
-      RCLCPP_ERROR(this->get_logger(),"spoofing flag %d", msg->data);
-    }
+
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
     { 
       gz::sensors::NavSatConverter navsat_converter;
@@ -137,7 +101,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
       RCLCPP_ERROR(this->get_logger(),"spoofer latitude LS navsat %lf", msg_spoofer.latitude_deg());
                 
     }
-  
+
     bool GetLeastSquaresEstimate(std::vector<double> _meas,
                   std::vector<std::vector<double>> _sat_ecef, Eigen::Vector3d &_rec_ecef)
     {
@@ -167,9 +131,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
       } while (dx.norm() > 1e-6 && iter < 10);
       return iter < 10;
     }
-    rclcpp::Publisher<px4_msgs::msg::SensorGps>::SharedPtr gps_publisher_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr spoofer_flag_subscriber_;
-
+    rclcpp::Publisher<mavros_msgs::msg::HilGPS>::SharedPtr publisher_;
     gz::transport::Node _node;
     std::string _world_name = "AbuDhabi";
     std::string _model_name = "x500_1";
@@ -177,19 +139,19 @@ class PX4GPSSimPublisher : public rclcpp::Node
     std::string navsat_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
     std::string spoofer_topic = "/world/" + _world_name + "/model/" + _spoofer_model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
     std::string px4_gps_ros_topic = "/px4_1/fmu/in/vehicle_gps_position";
-    int count;
+    std::string mavros_gps_topic = "mavros/gps_input/hil_gps";
+
     double spoofer_latitude;
     double spoofer_longitude;
     double spoofer_velocity_east;
     double spoofer_velocity_north;
-    bool spoofing_flag = false;
     
 };
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<PX4GPSSimPublisher>());
+  rclcpp::spin(std::make_shared<PX4GPSRealPublisher>());
   rclcpp::shutdown();
   return 0;
 }
