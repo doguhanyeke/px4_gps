@@ -1,0 +1,9 @@
+/**/mavros/**:
+  ros__parameters:
+    plugin_allowlist:
+      - gps_input
+      - time
+      - sys_status
+      - command
+      - param
+

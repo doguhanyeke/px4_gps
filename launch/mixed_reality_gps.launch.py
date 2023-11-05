@@ -18,7 +18,12 @@ def generate_launch_description():
             'gz_args': '-r /home/kap/ros2_ws_gz/src/world_sdf/AbuDhabi.sdf'
         }.items(),
     )
-
+    mocap_node = Node(
+            package='qualisys_mocap',
+            executable='qualisys_node',
+            namespace = 'qualisys',    		
+        )
+    
     mavros_gps_node = Node(
            package='px4_gps',
            executable='mavros_gps_real_pub',
@@ -37,8 +42,8 @@ def generate_launch_description():
     ) 
     mavros = IncludeLaunchDescription(XMLLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory("fakegps_mavros"),
-                "launch/px4_sitl.launch",
+                get_package_share_directory("px4_gps"),
+                "launch/px4_live162.launch",
             )
         )
     )
@@ -49,4 +54,5 @@ def generate_launch_description():
         entity_service,
         mavros,
         model_pose,
+        mocap_node,
     ])

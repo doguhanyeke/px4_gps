@@ -1,0 +1,33 @@
+<launch>
+  <!--qualisys-->
+  <!-- <node pkg="qualisys_mocap" exec="qualisys_node" name="qualisys" output="screen">
+    <param name="server" value="192.168.123.2"/>
+  </node> -->
+
+  <node pkg="tf2_ros" exec="static_transform_publisher" output="screen" args="--frame-id map --child-frame-id qualisys"/>
+  <node pkg="tf2_ros" exec="static_transform_publisher" output="screen" args="--frame-id map --child-frame-id odom"/>
+
+  <group>
+
+    <push-ros-namespace namespace=""/>
+
+    <node pkg="tf2_ros" exec="static_transform_publisher" output="screen" args="--frame-id drone162 --child-frame-id base_link"/>
+
+    <!--topic relay for mocap-->
+    <!-- <node pkg="topic_tools" exec="relay" name="relay" output="log" args="odom mavros/odometry/out"/> -->
+
+    <!-- mavros -->
+    <node pkg="mavros" exec="mavros_node" namespace="mavros" output="screen">
+      <param name="fcu_url" value="udp://:14550@127.0.0.1:14557" />
+      <param name="gcs_url" value="" />
+      <param name="tgt_system" value="2" />
+      <param name="tgt_component" value="1" />
+      <param name="fcu_protocol" value="v2.0" />
+      <param from="$(find-pkg-share px4_gps)/launch/px4_pluginlists.yaml" />
+      <param from="$(find-pkg-share px4_gps)/launch/px4_config.yaml" />
+    </node>
+
+  </group>
+
+</launch>
+

@@ -55,8 +55,6 @@ class PX4GPSRealPublisher : public rclcpp::Node
         hil_gps.epv = 1.78f * 1e2;                                  // [cm]
         hil_gps.fix_type = 3;
         hil_gps.satellites_visible = 10;
-        RCLCPP_ERROR(this->get_logger(),"navsat latitude LS navsat %lf", navsat.latitude_deg());
-
         publisher_->publish(hil_gps);
     }
 
@@ -97,9 +95,7 @@ class PX4GPSRealPublisher : public rclcpp::Node
       
       GetLeastSquaresEstimate(spoofer_sat_range_meas,  spoofer_sat_ECEF, recECEF);
       navsat_converter.ecef2Geodetic(recECEF(0), recECEF(1),recECEF(2), &latitude,
-                       &longitude, &altitude);
-      RCLCPP_ERROR(this->get_logger(),"spoofer latitude LS navsat %lf", msg_spoofer.latitude_deg());
-                
+                       &longitude, &altitude);                
     }
 
     bool GetLeastSquaresEstimate(std::vector<double> _meas,
@@ -138,7 +134,6 @@ class PX4GPSRealPublisher : public rclcpp::Node
     std::string _spoofer_model_name = "spoofer";
     std::string navsat_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
     std::string spoofer_topic = "/world/" + _world_name + "/model/" + _spoofer_model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
-    std::string px4_gps_ros_topic = "/px4_1/fmu/in/vehicle_gps_position";
     std::string mavros_gps_topic = "mavros/gps_input/hil_gps";
 
     double spoofer_latitude;

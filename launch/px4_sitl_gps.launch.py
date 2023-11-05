@@ -9,21 +9,8 @@ def generate_launch_description():
     px4_gps_node = Node(
            package='px4_gps',
            executable='px4_gps_sim_pub',
-           name='px4_gps_real_pub'
+           name='px4_gps_sim_pub'
         )
-    entity_service = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        arguments=['/world/AbuDhabi/set_pose@ros_gz_interfaces/srv/SetEntityPose']
-    )
-
-    spoofer_node = Node(
-           package='px4_offboard',
-           executable='spoofer_gz_stream',
-           name='spoofer_gz_stream'
-    ) 
     return LaunchDescription([
         px4_gps_node,
-        entity_service,
-        spoofer_node,
     ])

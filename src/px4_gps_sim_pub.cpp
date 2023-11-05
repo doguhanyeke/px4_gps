@@ -73,10 +73,11 @@ class PX4GPSSimPublisher : public rclcpp::Node
         sensor_gps.vel_d_m_s = -navsat.velocity_up();
         sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
         
-        //For spoofing
-        // sensor_gps.latitude_deg = spoofer_latitude;
-        // sensor_gps.longitude_deg = spoofer_longitude;
-      
+        if (spoofing_flag)
+        {
+          sensor_gps.latitude_deg = spoofer_latitude;
+          sensor_gps.longitude_deg = spoofer_longitude;
+        }
         sensor_gps.timestamp_time_relative = 0;
         sensor_gps.heading = NAN;
         sensor_gps.heading_offset = NAN;
@@ -91,9 +92,9 @@ class PX4GPSSimPublisher : public rclcpp::Node
         count++;
         gps_publisher_->publish(sensor_gps);
     }
-    void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg) const
+    void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg)
     {
-      //spoofing_flag = msg->data;
+      spoofing_flag = msg->data;
       RCLCPP_ERROR(this->get_logger(),"spoofing flag %d", msg->data);
     }
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
@@ -182,7 +183,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
     double spoofer_longitude;
     double spoofer_velocity_east;
     double spoofer_velocity_north;
-    bool spoofing_flag = false;
+    int spoofing_flag;
     
 };
 
