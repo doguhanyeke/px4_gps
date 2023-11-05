@@ -20,8 +20,7 @@ def generate_launch_description():
     )
     mocap_node = Node(
             package='qualisys_mocap',
-            executable='qualisys_node',
-            namespace = 'qualisys',    		
+            executable='qualisys_node', 		
         )
     
     mavros_gps_node = Node(
