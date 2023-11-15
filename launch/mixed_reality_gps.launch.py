@@ -42,10 +42,25 @@ def generate_launch_description():
     mavros = IncludeLaunchDescription(XMLLaunchDescriptionSource(
             os.path.join(
                 get_package_share_directory("px4_gps"),
-                "launch/px4_live162.launch",
+                "launch/px4_live161.launch",
             )
         )
     )
+
+    onboard_camera_bridge = Node(
+        package='ros_gz_image',
+        executable='image_bridge',
+        arguments=['/camera'],
+        output='screen'
+    )
+
+    rviz_node = Node(
+            package='rviz2',
+            namespace='',
+            executable='rviz2',
+            name='rviz2',
+            arguments=['-d', [os.path.join(get_package_share_directory('px4_gps'), 'config', 'rviz_config.rviz')]]
+        )
 
     return LaunchDescription([
         gz_sim,
@@ -54,4 +69,6 @@ def generate_launch_description():
         mavros,
         model_pose,
         mocap_node,
+        onboard_camera_bridge,
+        rviz_node
     ])

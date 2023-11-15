@@ -7,14 +7,14 @@
 
     <push-ros-namespace namespace=""/>
     
-    <node pkg="tf2_ros" exec="static_transform_publisher" output="screen" args="--frame-id drone162 --child-frame-id base_link"/>
+    <node pkg="tf2_ros" exec="static_transform_publisher" output="screen" args="--frame-id drone161 --child-frame-id base_link"/>
 
     <!--topic relay for mocap-->
     <!-- <node pkg="topic_tools" exec="relay" name="relay" output="log" args="odom mavros/odometry/out"/> -->
 
     <!-- mavros -->
     <node pkg="mavros" exec="mavros_node" namespace="mavros" output="screen">
-      <param name="fcu_url" value="udp://0.0.0.0:14172@192.168.123.172:14557" />
+      <param name="fcu_url" value="udp://0.0.0.0:14171@192.168.123.171:14557" />
       <param name="gcs_url" value="udp://@127.0.0.1" />
       <param name="target_system_id" value="1" />
       <param name="target_component_id" value="1" />

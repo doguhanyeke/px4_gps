@@ -11,6 +11,18 @@ def generate_launch_description():
            executable='px4_gps_sim_pub',
            name='px4_gps_sim_pub'
         )
+    gz_true_pos_node = Node(
+            package='offboard_detector',
+            executable='gz_true_pos_pub',
+            output ='screen'
+        )
+    offboard_detector_node = Node(
+            package='offboard_detector',
+            executable='observer_detector.py',
+        )
+
     return LaunchDescription([
         px4_gps_node,
+        gz_true_pos_node,
+        offboard_detector_node, 
     ])

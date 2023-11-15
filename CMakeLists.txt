@@ -68,6 +68,7 @@ mavros_gps_real_pub
 # Install launch files.
 install(DIRECTORY
   launch
+  config
   DESTINATION share/${PROJECT_NAME}/
 )
 if(BUILD_TESTING)
