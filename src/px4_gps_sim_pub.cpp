@@ -88,14 +88,14 @@ class PX4GPSSimPublisher : public rclcpp::Node
         sensor_gps.vel_ned_valid = true;
         sensor_gps.satellites_used = 10;
 
-        RCLCPP_ERROR(this->get_logger(),"spoofer latitude inside navsat %lf", spoofer_latitude);
+        //RCLCPP_ERROR(this->get_logger(),"spoofer latitude inside navsat %lf", spoofer_latitude);
         count++;
         gps_publisher_->publish(sensor_gps);
     }
     void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg)
     {
       spoofing_flag = msg->data;
-      RCLCPP_ERROR(this->get_logger(),"spoofing flag %d", msg->data);
+      //RCLCPP_ERROR(this->get_logger(),"spoofing flag %d", msg->data);
     }
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
     { 
@@ -135,7 +135,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
       GetLeastSquaresEstimate(spoofer_sat_range_meas,  spoofer_sat_ECEF, recECEF);
       navsat_converter.ecef2Geodetic(recECEF(0), recECEF(1),recECEF(2), &latitude,
                        &longitude, &altitude);
-      RCLCPP_ERROR(this->get_logger(),"spoofer latitude LS navsat %lf", msg_spoofer.latitude_deg());
+      //RCLCPP_ERROR(this->get_logger(),"spoofer latitude LS navsat %lf", msg_spoofer.latitude_deg());
                 
     }
   
