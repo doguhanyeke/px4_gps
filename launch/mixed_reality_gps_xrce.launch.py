@@ -23,16 +23,10 @@ def generate_launch_description():
             executable='qualisys_node', 		
     )
     
-    mavros_gps_node = Node(
+    px4_gps_node = Node(
            package='px4_gps',
-           executable='mavros_gps_real_pub',
-           name='mavros_gps_real_pub',
-           parameters=[
-                {'gz_world_name': "AbuDhabi"},
-                {'gz_model_name': "x500_1"},
-                {'gz_spoofer_model_name': "spoofer"},
-                {'gps_delay': 0.0},
-            ]
+           executable='px4_gps_real_pub',
+           name='px4_gps_real_pub',
     )
     
     entity_service = Node(
@@ -47,11 +41,7 @@ def generate_launch_description():
            name='mocap_gz_stream'
     ) 
     
-    mavros = IncludeLaunchDescription(XMLLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("px4_gps"),
-                "launch/px4_live162.launch",))
-    )
+    
 
     onboard_camera_bridge = Node(
         package='ros_gz_image',
@@ -60,21 +50,11 @@ def generate_launch_description():
         output='screen'
     )
 
-    # rviz_node = Node(
-    #         package='rviz2',
-    #         namespace='',
-    #         executable='rviz2',
-    #         name='rviz2',
-    #         arguments=['-d', [os.path.join(
-    #             get_package_share_directory('px4_gps'),
-    #             'config', 'rviz_config.rviz')]]
-    # )
 
     return LaunchDescription([
         gz_sim,
-        mavros_gps_node,
+        px4_gps_node,
         entity_service,
-        mavros,
         model_pose,
         mocap_node,
         onboard_camera_bridge,

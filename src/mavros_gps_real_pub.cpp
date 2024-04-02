@@ -13,6 +13,9 @@
 #include <gz/sensors/NavSatMultipathSensor.hh>
 #include <gz/msgs/navsat_multipath.pb.h>
 #include "px4_gps/tsqueue.hpp"
+#include <std_msgs/msg/bool.hpp>
+#include "offboard_detector/msg/detector_output.hpp"
+
 using namespace std::chrono_literals;
 
 class PX4GPSRealPublisher : public rclcpp::Node
@@ -36,10 +39,24 @@ class PX4GPSRealPublisher : public rclcpp::Node
       if (!_node.Subscribe(navsat_topic, &PX4GPSRealPublisher::navsatCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", navsat_topic.c_str());
       }
-      // if (!_node.Subscribe(spoofer_topic, &PX4GPSRealPublisher::navsatSpooferCallback, this)) {
-      //       RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
-      // }  
+      if (!_node.Subscribe(spoofer_topic, &PX4GPSRealPublisher::navsatSpooferCallback, this)) {
+            RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
+      }  
       publisher_ = this->create_publisher<mavros_msgs::msg::HilGPS>(mavros_gps_topic, 1);  
+      spoofer_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
+        "/spoofing_flag", 10, std::bind(&PX4GPSRealPublisher::spoofingCallback, this, std::placeholders::_1));
+      count =0;
+      
+      rmw_qos_profile_t qos_profile = rmw_qos_profile_default;
+      qos_profile.history=RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+      qos_profile.depth=1;
+      qos_profile.reliability=RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+      qos_profile.durability=RMW_QOS_POLICY_DURABILITY_VOLATILE;
+      auto qos_ = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
+
+      detector_output_subscriber_ = this->create_subscription<offboard_detector::msg::DetectorOutput>(
+        "/detector/out/observer_output", qos_, std::bind(&PX4GPSRealPublisher::detectorCallback, this, std::placeholders::_1));
+      
       //timer_ = this->create_wall_timer(std::chrono::microseconds(100), std::bind(&PX4GPSRealPublisher::timerCallback, this));
     }
   private:
@@ -66,7 +83,7 @@ class PX4GPSRealPublisher : public rclcpp::Node
         // Fill in and send message
         hil_gps.header.stamp.sec = navsat.header().stamp().sec();                 // [useconds]
         hil_gps.header.stamp.nanosec = navsat.header().stamp().nsec();  
-        hil_gps.geo.latitude = navsat.latitude_deg();                         // [degrees * 1e7]
+        hil_gps.geo.latitude = navsat.latitude_deg();//+ 0.0000001*count;                         // [degrees * 1e7]
         hil_gps.geo.longitude = navsat.longitude_deg();                         // [degrees * 1e7]
         hil_gps.geo.altitude = navsat.altitude();    // [meters * 1e3]
         hil_gps.vel = sqrtf(
@@ -81,7 +98,14 @@ class PX4GPSRealPublisher : public rclcpp::Node
         hil_gps.epv = 1.78f * 1e2;                                  // [cm]
         hil_gps.fix_type = 3;
         hil_gps.satellites_visible = 10;
+        
+        if (spoofing_flag == 1)
+        {
+          hil_gps.geo.latitude = spoofer_latitude;
+          hil_gps.geo.longitude = spoofer_longitude;
+        }
         publisher_->publish(hil_gps);
+        count++;
         // rclcpp::Time t = this->now();
         // double time_now = t.seconds();
         // hilgps_msg_queue.push(hil_gps);
@@ -91,15 +115,13 @@ class PX4GPSRealPublisher : public rclcpp::Node
 
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
     { 
-      gz::sensors::NavSatConverter navsat_converter;
-      //gz::sensors::NavSatMultipathSensor navsat_sensor;
-
-      std::vector<double> spoofer_sat_range_meas;
-      std::vector<std::vector<double>> spoofer_sat_ECEF;
-      double world_origin_lat = 24.484043629238872;
-      double world_origin_lon = 54.36068616768677;
-      double world_origin_alt = 10.0;
-      navsat_converter.initialiseReference(world_origin_lat, world_origin_lon, world_origin_alt);
+      // gz::sensors::NavSatConverter navsat_converter;
+      // std::vector<double> spoofer_sat_range_meas;
+      // std::vector<std::vector<double>> spoofer_sat_ECEF;
+      // double world_origin_lat = 24.484043629238872;
+      // double world_origin_lon = 54.36068616768677;
+      // double world_origin_alt = 10.0;
+      // navsat_converter.initialiseReference(world_origin_lat, world_origin_lon, world_origin_alt);
 
       spoofer_latitude = msg_spoofer.latitude_deg();
       spoofer_longitude =  msg_spoofer.longitude_deg();
@@ -107,26 +129,37 @@ class PX4GPSRealPublisher : public rclcpp::Node
       spoofer_velocity_north = msg_spoofer.velocity_north();
 
       
-      for (int i = 0; i < msg_spoofer.satellite_range().size(); i++)
-      {
-        spoofer_sat_range_meas.push_back(msg_spoofer.satellite_range(i));        
-      }
+      // for (int i = 0; i < msg_spoofer.satellite_range().size(); i++)
+      // {
+      //   spoofer_sat_range_meas.push_back(msg_spoofer.satellite_range(i));        
+      // }
 
-      for (int i = 0; i < msg_spoofer.satellite_ecef().size(); i++)
-      {
-        std::vector<double> ecef = {0,0,0};
+      // for (int i = 0; i < msg_spoofer.satellite_ecef().size(); i++)
+      // {
+      //   std::vector<double> ecef = {0,0,0};
 
-        ecef[0] = msg_spoofer.satellite_ecef(i).x();
-        ecef[1] = msg_spoofer.satellite_ecef(i).y();
-        ecef[2] = msg_spoofer.satellite_ecef(i).z();
-        spoofer_sat_ECEF.push_back(ecef);        
-      }
-      double latitude=0, longitude=0, altitude=0;
-      Eigen::Vector3d recECEF(0,0,0);
+      //   ecef[0] = msg_spoofer.satellite_ecef(i).x();
+      //   ecef[1] = msg_spoofer.satellite_ecef(i).y();
+      //   ecef[2] = msg_spoofer.satellite_ecef(i).z();
+      //   spoofer_sat_ECEF.push_back(ecef);        
+      // }
+      // double latitude=0, longitude=0, altitude=0;
+      // Eigen::Vector3d recECEF(0,0,0);
       
       // GetLeastSquaresEstimate(spoofer_sat_range_meas,  spoofer_sat_ECEF, recECEF);
       // navsat_converter.ecef2Geodetic(recECEF(0), recECEF(1),recECEF(2), &latitude,
       //                  &longitude, &altitude);                
+    }
+    
+    void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg)
+    {
+      spoofing_flag = msg->data;
+    }
+    
+    void detectorCallback(const offboard_detector::msg::DetectorOutput::SharedPtr msg)
+    {
+      attack_flag = msg->attack_detect;
+      spoofing_flag = 0;
     }
 
     bool GetLeastSquaresEstimate(std::vector<double> _meas,
@@ -163,14 +196,18 @@ class PX4GPSRealPublisher : public rclcpp::Node
     gz::transport::Node _node;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<mavros_msgs::msg::HilGPS>::SharedPtr publisher_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr spoofer_flag_subscriber_;
+    rclcpp::Subscription<offboard_detector::msg::DetectorOutput>::SharedPtr detector_output_subscriber_;
+
     TSQueue<mavros_msgs::msg::HilGPS> hilgps_msg_queue; 
     TSQueue<double> time_queue; 
-
+    int count;
     double spoofer_latitude;
     double spoofer_longitude;
     double spoofer_velocity_east;
     double spoofer_velocity_north;
-    
+    int spoofing_flag;
+    int attack_flag;
 };
 
 int main(int argc, char * argv[])

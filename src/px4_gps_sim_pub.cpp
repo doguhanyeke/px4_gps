@@ -10,12 +10,13 @@
 #include <gz/msgs/pose_v.pb.h>
 
 #include "rclcpp/rclcpp.hpp"
+#include <rclcpp/qos.hpp>
 #include "std_msgs/msg/string.hpp"
 #include "px4_msgs/msg/sensor_gps.hpp"
 #include <gz/sensors/NavSatMultipathSensor.hh>
 #include <geometry_msgs/msg/pose.hpp>
 #include <std_msgs/msg/bool.hpp>
-
+#include "offboard_detector/msg/detector_output.hpp"
 using namespace std::chrono_literals;
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -33,9 +34,19 @@ class PX4GPSSimPublisher : public rclcpp::Node
       if (!_node.Subscribe(spoofer_topic, &PX4GPSSimPublisher::navsatSpooferCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
       }  
+      
       gps_publisher_ = this->create_publisher<px4_msgs::msg::SensorGps>(px4_gps_ros_topic, 10);  
       spoofer_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
-        "/spoofing_flag", 10, std::bind(&PX4GPSSimPublisher::spoofingCallback, this, std::placeholders::_1));
+        "/spoofing_flag", 10, std::bind(&PX4GPSSimPublisher::spoofingCallback, this, std::placeholders::_1));      
+      rmw_qos_profile_t qos_profile = rmw_qos_profile_default;
+      qos_profile.history=RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+      qos_profile.depth=1;
+      qos_profile.reliability=RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+      qos_profile.durability=RMW_QOS_POLICY_DURABILITY_VOLATILE;
+      auto qos_ = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
+
+      detector_output_subscriber_ = this->create_subscription<offboard_detector::msg::DetectorOutput>(
+        "/px4_1/detector/out/observer_output", qos_, std::bind(&PX4GPSSimPublisher::detectorCallback, this, std::placeholders::_1));
       count=0;
     }
   private:
@@ -56,7 +67,6 @@ class PX4GPSSimPublisher : public rclcpp::Node
         sensor_gps.hdop = 0.7f;
         sensor_gps.vdop = 1.1f;
 
-      
         sensor_gps.altitude_msl_m = navsat.altitude();
         sensor_gps.altitude_ellipsoid_m = navsat.altitude();
         sensor_gps.noise_per_ms = 0;
@@ -73,11 +83,12 @@ class PX4GPSSimPublisher : public rclcpp::Node
         sensor_gps.vel_d_m_s = -navsat.velocity_up();
         sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
         
-        if (spoofing_flag)
+        if (spoofing_flag == 1 )//&& attack_flag == 0)
         {
           sensor_gps.latitude_deg = spoofer_latitude;
           sensor_gps.longitude_deg = spoofer_longitude;
         }
+
         sensor_gps.timestamp_time_relative = 0;
         sensor_gps.heading = NAN;
         sensor_gps.heading_offset = NAN;
@@ -87,16 +98,21 @@ class PX4GPSSimPublisher : public rclcpp::Node
         sensor_gps.spoofing_state = 0;
         sensor_gps.vel_ned_valid = true;
         sensor_gps.satellites_used = 10;
-
-        //RCLCPP_ERROR(this->get_logger(),"spoofer latitude inside navsat %lf", spoofer_latitude);
         count++;
         gps_publisher_->publish(sensor_gps);
     }
+    
     void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg)
     {
       spoofing_flag = msg->data;
-      //RCLCPP_ERROR(this->get_logger(),"spoofing flag %d", msg->data);
     }
+    
+    void detectorCallback(const offboard_detector::msg::DetectorOutput::SharedPtr msg)
+    {
+      attack_flag = msg->attack_detect;
+      spoofing_flag = 0;
+    }
+    
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
     { 
       gz::sensors::NavSatConverter navsat_converter;
@@ -170,6 +186,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
     }
     rclcpp::Publisher<px4_msgs::msg::SensorGps>::SharedPtr gps_publisher_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr spoofer_flag_subscriber_;
+    rclcpp::Subscription<offboard_detector::msg::DetectorOutput>::SharedPtr detector_output_subscriber_;
 
     gz::transport::Node _node;
     std::string _world_name = "AbuDhabi";
@@ -184,6 +201,7 @@ class PX4GPSSimPublisher : public rclcpp::Node
     double spoofer_velocity_east;
     double spoofer_velocity_north;
     int spoofing_flag;
+    int attack_flag;
     
 };
 

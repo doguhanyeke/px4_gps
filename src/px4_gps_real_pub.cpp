@@ -8,7 +8,7 @@
 #include <gz/transport.hh>
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "px4_msgs/msg/sensor_gps_old.hpp"
+#include "px4_msgs/msg/sensor_gps.hpp"
 #include <gz/sensors/NavSatMultipathSensor.hh>
 #include <gz/msgs/navsat_multipath.pb.h>
 
@@ -24,8 +24,7 @@ class PX4GPSRealPublisher : public rclcpp::Node
     PX4GPSRealPublisher()
     : Node("px4_gps_real_publisher")
     {
-    
-      std::string navsat_topic = "/world/AbuDhabi/model/drone162/link/base_link/sensor/navsat_sensor/navsat_multipath";
+      std::string navsat_topic = "/world/AbuDhabi/model/x500_1/link/base_link/sensor/navsat_sensor/navsat_multipath";
       std::string px4_gps_ros_topic = "/fmu/in/vehicle_gps_position";
       
       if (!_node.Subscribe(navsat_topic, &PX4GPSRealPublisher::navsatCallback, this)) {
@@ -34,7 +33,7 @@ class PX4GPSRealPublisher : public rclcpp::Node
       // if (!_node.Subscribe(spoofer_topic, &PX4GPSRealPublisher::navsatSpooferCallback, this)) {
       //       RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
       // }  
-      publisher_ = this->create_publisher<px4_msgs::msg::SensorGpsOld>(px4_gps_ros_topic, 10);  
+      publisher_ = this->create_publisher<px4_msgs::msg::SensorGps>(px4_gps_ros_topic, 10);  
       count=0;
     }
   private:
@@ -42,43 +41,43 @@ class PX4GPSRealPublisher : public rclcpp::Node
     {   
         const uint64_t time_us = (navsat.header().stamp().sec() * 1000000) + (navsat.header().stamp().nsec() / 1000);
         // publish gps
-        auto sensor_gps = px4_msgs::msg::SensorGpsOld();
+        auto sensor_gps = px4_msgs::msg::SensorGps();
       
-        sensor_gps.device_id =11010053; // (Type: 0xA8, SERIAL:0 (0x00))
-        sensor_gps.timestamp_sample = time_us;
-        sensor_gps.timestamp = time_us;
+        // sensor_gps.device_id =11010053; // (Type: 0xA8, SERIAL:0 (0x00))
+        // sensor_gps.timestamp_sample = time_us;
+        // sensor_gps.timestamp = time_us;
 
-        sensor_gps.fix_type = 3; // 3D fix
-        sensor_gps.s_variance_m_s = 0.4f;
-        sensor_gps.c_variance_rad = 0.1f;
-        sensor_gps.eph = 0.9f;
-        sensor_gps.epv = 1.78f;
-        sensor_gps.hdop = 0.7f;
-        sensor_gps.vdop = 1.1f;
+        // sensor_gps.fix_type = 3; // 3D fix
+        // sensor_gps.s_variance_m_s = 0.4f;
+        // sensor_gps.c_variance_rad = 0.1f;
+        // sensor_gps.eph = 0.9f;
+        // sensor_gps.epv = 1.78f;
+        // sensor_gps.hdop = 0.7f;
+        // sensor_gps.vdop = 1.1f;
 
-        sensor_gps.lat = navsat.latitude_deg()*1e7; //+ 0.00000025*count;
-        sensor_gps.lon = navsat.longitude_deg()*1e7;
-        sensor_gps.alt = navsat.altitude()*1e3;
-        sensor_gps.alt_ellipsoid = navsat.altitude()*1e3;
-        sensor_gps.noise_per_ms = 0;
-        sensor_gps.jamming_indicator = 0;
-        sensor_gps.vel_m_s = sqrtf(
-                navsat.velocity_east() * navsat.velocity_east()
-                + navsat.velocity_north() * navsat.velocity_north()
-                + navsat.velocity_up() * navsat.velocity_up());
-        sensor_gps.vel_n_m_s = navsat.velocity_north();
-        sensor_gps.vel_e_m_s = navsat.velocity_east();
-        sensor_gps.vel_d_m_s = -navsat.velocity_up();
-        sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
-        sensor_gps.timestamp_time_relative = 0;
-        sensor_gps.heading = NAN;
-        sensor_gps.heading_offset = NAN;
-        sensor_gps.heading_accuracy = 0;
-        sensor_gps.automatic_gain_control = 0;
-        sensor_gps.jamming_state = 0;
-        sensor_gps.spoofing_state = 0;
-        sensor_gps.vel_ned_valid = true;
-        sensor_gps.satellites_used = 10;
+        // sensor_gps.lat = navsat.latitude_deg()*1e7; //+ 0.00000025*count;
+        // sensor_gps.lon = navsat.longitude_deg()*1e7;
+        // sensor_gps.alt = navsat.altitude()*1e3;
+        // sensor_gps.alt_ellipsoid = navsat.altitude()*1e3;
+        // sensor_gps.noise_per_ms = 0;
+        // sensor_gps.jamming_indicator = 0;
+        // sensor_gps.vel_m_s = sqrtf(
+        //         navsat.velocity_east() * navsat.velocity_east()
+        //         + navsat.velocity_north() * navsat.velocity_north()
+        //         + navsat.velocity_up() * navsat.velocity_up());
+        // sensor_gps.vel_n_m_s = navsat.velocity_north();
+        // sensor_gps.vel_e_m_s = navsat.velocity_east();
+        // sensor_gps.vel_d_m_s = -navsat.velocity_up();
+        // sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
+        // sensor_gps.timestamp_time_relative = 0;
+        // sensor_gps.heading = NAN;
+        // sensor_gps.heading_offset = NAN;
+        // sensor_gps.heading_accuracy = 0;
+        // sensor_gps.automatic_gain_control = 0;
+        // sensor_gps.jamming_state = 0;
+        // sensor_gps.spoofing_state = 0;
+        // sensor_gps.vel_ned_valid = true;
+        // sensor_gps.satellites_used = 10;
         count++;
         publisher_->publish(sensor_gps);
     }
@@ -154,7 +153,7 @@ class PX4GPSRealPublisher : public rclcpp::Node
       } while (dx.norm() > 1e-6 && iter < 10);
       return iter < 10;
     }
-    rclcpp::Publisher<px4_msgs::msg::SensorGpsOld>::SharedPtr publisher_;
+    rclcpp::Publisher<px4_msgs::msg::SensorGps>::SharedPtr publisher_;
     gz::transport::Node _node;
     int count;
     double spoofer_latitude;
