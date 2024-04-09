@@ -18,10 +18,10 @@
 
 using namespace std::chrono_literals;
 
-class PX4GPSRealPublisher : public rclcpp::Node
+class PX4GPSMavrosPublisher : public rclcpp::Node
 {
   public:
-    PX4GPSRealPublisher()
+    PX4GPSMavrosPublisher()
     : Node("mavros_gps_real_publisher")
     {
       this->declare_parameter("gz_world_name", "AbuDhabi");
@@ -32,19 +32,24 @@ class PX4GPSRealPublisher : public rclcpp::Node
       std::string _world_name = this->get_parameter("gz_world_name").as_string();
       std::string _model_name = this->get_parameter("gz_model_name").as_string();
       std::string _spoofer_model_name = this->get_parameter("gz_spoofer_model_name").as_string();
+
+      RCLCPP_INFO(this->get_logger(),"World Name: %s", _world_name.c_str());
+      RCLCPP_INFO(this->get_logger(),"Drone Model Name: %s", _model_name.c_str());
+      RCLCPP_INFO(this->get_logger(),"Spoofer Model Name: %s", _spoofer_model_name.c_str());
+
       std::string navsat_topic = "/world/" + _world_name + "/model/" + _model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
       std::string spoofer_topic = "/world/" + _world_name + "/model/" + _spoofer_model_name + "/link/base_link/sensor/navsat_sensor/navsat_multipath";
       std::string mavros_gps_topic = "mavros/gps_input/hil_gps";
 
-      if (!_node.Subscribe(navsat_topic, &PX4GPSRealPublisher::navsatCallback, this)) {
+      if (!_node.Subscribe(navsat_topic, &PX4GPSMavrosPublisher::navsatCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", navsat_topic.c_str());
       }
-      if (!_node.Subscribe(spoofer_topic, &PX4GPSRealPublisher::navsatSpooferCallback, this)) {
+      if (!_node.Subscribe(spoofer_topic, &PX4GPSMavrosPublisher::navsatSpooferCallback, this)) {
             RCLCPP_ERROR(this->get_logger(),"failed to subscribe to %s", spoofer_topic.c_str());
       }  
-      publisher_ = this->create_publisher<mavros_msgs::msg::HilGPS>(mavros_gps_topic, 1);  
-      spoofer_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
-        "/spoofing_flag", 10, std::bind(&PX4GPSRealPublisher::spoofingCallback, this, std::placeholders::_1));
+      hil_gps_publisher_ = this->create_publisher<mavros_msgs::msg::HilGPS>(mavros_gps_topic, 1);  
+      attack_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
+        "/attack_flag", 10, std::bind(&PX4GPSMavrosPublisher::attackFlagCallback, this, std::placeholders::_1));
       count =0;
       
       rmw_qos_profile_t qos_profile = rmw_qos_profile_default;
@@ -53,10 +58,8 @@ class PX4GPSRealPublisher : public rclcpp::Node
       qos_profile.reliability=RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
       qos_profile.durability=RMW_QOS_POLICY_DURABILITY_VOLATILE;
       auto qos_ = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
-
-      detector_output_subscriber_ = this->create_subscription<offboard_detector::msg::DetectorOutput>(
-        "/detector/out/observer_output", qos_, std::bind(&PX4GPSRealPublisher::detectorCallback, this, std::placeholders::_1));
-      
+      detector_flag_subscriber_ = this->create_subscription<offboard_detector::msg::DetectorOutput>(
+        "/detector/out/observer_output", qos_, std::bind(&PX4GPSMavrosPublisher::detectorFlagCallback, this, std::placeholders::_1));
       //timer_ = this->create_wall_timer(std::chrono::microseconds(100), std::bind(&PX4GPSRealPublisher::timerCallback, this));
     }
   private:
@@ -71,7 +74,7 @@ class PX4GPSRealPublisher : public rclcpp::Node
     //     {
     //       time_queue.pop();
     //       hil_gps = hilgps_msg_queue.pop();
-    //       publisher_->publish(hil_gps);
+    //       hil_gps_publisher_->publish(hil_gps);
     //       //RCLCPP_ERROR(this->get_logger(), "time after: %f", time_now);
     //     }
     // }
@@ -99,12 +102,12 @@ class PX4GPSRealPublisher : public rclcpp::Node
         hil_gps.fix_type = 3;
         hil_gps.satellites_visible = 10;
         
-        if (spoofing_flag == 1)
+        if (attack_flag == 1)
         {
           hil_gps.geo.latitude = spoofer_latitude;
           hil_gps.geo.longitude = spoofer_longitude;
         }
-        publisher_->publish(hil_gps);
+        hil_gps_publisher_->publish(hil_gps);
         count++;
         // rclcpp::Time t = this->now();
         // double time_now = t.seconds();
@@ -115,89 +118,28 @@ class PX4GPSRealPublisher : public rclcpp::Node
 
     void navsatSpooferCallback(const gz::msgs::NavSatMultipath &msg_spoofer)
     { 
-      // gz::sensors::NavSatConverter navsat_converter;
-      // std::vector<double> spoofer_sat_range_meas;
-      // std::vector<std::vector<double>> spoofer_sat_ECEF;
-      // double world_origin_lat = 24.484043629238872;
-      // double world_origin_lon = 54.36068616768677;
-      // double world_origin_alt = 10.0;
-      // navsat_converter.initialiseReference(world_origin_lat, world_origin_lon, world_origin_alt);
-
       spoofer_latitude = msg_spoofer.latitude_deg();
       spoofer_longitude =  msg_spoofer.longitude_deg();
       spoofer_velocity_east = msg_spoofer.velocity_east();
-      spoofer_velocity_north = msg_spoofer.velocity_north();
-
-      
-      // for (int i = 0; i < msg_spoofer.satellite_range().size(); i++)
-      // {
-      //   spoofer_sat_range_meas.push_back(msg_spoofer.satellite_range(i));        
-      // }
-
-      // for (int i = 0; i < msg_spoofer.satellite_ecef().size(); i++)
-      // {
-      //   std::vector<double> ecef = {0,0,0};
-
-      //   ecef[0] = msg_spoofer.satellite_ecef(i).x();
-      //   ecef[1] = msg_spoofer.satellite_ecef(i).y();
-      //   ecef[2] = msg_spoofer.satellite_ecef(i).z();
-      //   spoofer_sat_ECEF.push_back(ecef);        
-      // }
-      // double latitude=0, longitude=0, altitude=0;
-      // Eigen::Vector3d recECEF(0,0,0);
-      
-      // GetLeastSquaresEstimate(spoofer_sat_range_meas,  spoofer_sat_ECEF, recECEF);
-      // navsat_converter.ecef2Geodetic(recECEF(0), recECEF(1),recECEF(2), &latitude,
-      //                  &longitude, &altitude);                
+      spoofer_velocity_north = msg_spoofer.velocity_north();      
     }
     
-    void spoofingCallback(const std_msgs::msg::Bool::SharedPtr msg)
+    void attackFlagCallback(const std_msgs::msg::Bool::SharedPtr msg)
     {
-      spoofing_flag = msg->data;
+      attack_flag = msg->data;
     }
     
-    void detectorCallback(const offboard_detector::msg::DetectorOutput::SharedPtr msg)
+    void detectorFlagCallback(const offboard_detector::msg::DetectorOutput::SharedPtr msg)
     {
-      attack_flag = msg->attack_detect;
-      spoofing_flag = 0;
+      detect_flag = msg->attack_detect;
+      attack_flag = 0;
     }
-
-    bool GetLeastSquaresEstimate(std::vector<double> _meas,
-                  std::vector<std::vector<double>> _sat_ecef, Eigen::Vector3d &_rec_ecef)
-    {
-      const int nsat = _meas.size();
-      Eigen::MatrixXd A, b;
-      A.resize(nsat, 4);
-      b.resize(nsat, 1);
-      Eigen::Matrix<double, 4, 1> dx;
-      Eigen::ColPivHouseholderQR<Eigen::MatrixXd> solver;
-      double cdt = 0;
-      int iter = 0;
-      do
-      {
-        iter++;
-        for (int i = 0 ; i < nsat; i++)
-        {
-          Eigen::Vector3d sat_pos(_sat_ecef[i][0], _sat_ecef[i][1], _sat_ecef[i][2]);
-          double dist = (_rec_ecef - sat_pos).norm();
-          A.block<1,3>(i,0) = (_rec_ecef - sat_pos).normalized();
-          b(i) = _meas[i] - (dist + cdt);
-          A(i,3) = -1;
-          
-        }
-        solver.compute(A);
-        dx = solver.solve(b);
-        _rec_ecef += dx.topRows<3>();
-      } while (dx.norm() > 1e-6 && iter < 10);
-      return iter < 10;
-    }
-    
     
     gz::transport::Node _node;
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<mavros_msgs::msg::HilGPS>::SharedPtr publisher_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr spoofer_flag_subscriber_;
-    rclcpp::Subscription<offboard_detector::msg::DetectorOutput>::SharedPtr detector_output_subscriber_;
+    rclcpp::Publisher<mavros_msgs::msg::HilGPS>::SharedPtr hil_gps_publisher_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr attack_flag_subscriber_;
+    rclcpp::Subscription<offboard_detector::msg::DetectorOutput>::SharedPtr detector_flag_subscriber_;
 
     TSQueue<mavros_msgs::msg::HilGPS> hilgps_msg_queue; 
     TSQueue<double> time_queue; 
@@ -206,14 +148,14 @@ class PX4GPSRealPublisher : public rclcpp::Node
     double spoofer_longitude;
     double spoofer_velocity_east;
     double spoofer_velocity_north;
-    int spoofing_flag;
     int attack_flag;
+    int detect_flag;
 };
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<PX4GPSRealPublisher>());
+  rclcpp::spin(std::make_shared<PX4GPSMavrosPublisher>());
   rclcpp::shutdown();
   return 0;
 }

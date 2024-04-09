@@ -36,36 +36,24 @@ if(gz-transport12_FOUND)
 	endif()
 endif()
 
-add_executable(px4_gps_sim_pub src/px4_gps_sim_pub.cpp)
-add_executable(px4_gps_real_pub src/px4_gps_real_pub.cpp)
-add_executable(mavros_gps_real_pub src/mavros_gps_real_pub.cpp)
+add_executable(px4_gps_pub_xrce src/px4_gps_pub_xrce.cpp)
+add_executable(px4_gps_pub_mavros src/px4_gps_pub_mavros.cpp)
 
-ament_target_dependencies(px4_gps_sim_pub rclcpp ${Eigen_LIBRARIES}
+ament_target_dependencies(px4_gps_pub_xrce rclcpp ${Eigen_LIBRARIES}
                         gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs geometry_msgs offboard_detector)
-target_include_directories(px4_gps_sim_pub PUBLIC ${Eigen3_INCLUDE_DIRS})
+target_include_directories(px4_gps_pub_xrce PUBLIC ${Eigen3_INCLUDE_DIRS})
 
-ament_target_dependencies(px4_gps_real_pub rclcpp
-                        gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs)     
-target_include_directories(px4_gps_real_pub PUBLIC ${Eigen3_INCLUDE_DIRS})
-ament_target_dependencies(mavros_gps_real_pub rclcpp
+ament_target_dependencies(px4_gps_pub_mavros rclcpp
                         gz-transport12 gz-sensors7 gz-rendering7 gz-msgs9 gz-math7 px4_msgs std_msgs mavros_msgs offboard_detector)                   
-target_include_directories(mavros_gps_real_pub PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+target_include_directories(px4_gps_pub_mavros PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 $<INSTALL_INTERFACE:include> ${Eigen3_INCLUDE_DIRS})
 
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
-
 install(TARGETS
-px4_gps_sim_pub
-  DESTINATION lib/${PROJECT_NAME})
-  
-install(TARGETS
-px4_gps_real_pub
+px4_gps_pub_xrce
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS
-mavros_gps_real_pub
+px4_gps_pub_mavros
     DESTINATION lib/${PROJECT_NAME})  
   
 # Install launch files.

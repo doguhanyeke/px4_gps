@@ -1,0 +1,5 @@
+# Common configuration for PX4 autopilot
+# gps_input
+/**/gps_input:
+  ros__parameters:
+    gps_rate: 10.0           # GPS data publishing rate
