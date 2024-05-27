@@ -302,12 +302,14 @@ class PX4GPSXrcePublisher : public rclcpp::Node
       
       std::string px4_gps_ros_topic= "";
       std::string px4_all_hover_topic= "";
+      std::string px4_attack_topic= "";
       if (_px4_ns.empty()){
         px4_gps_ros_topic = "/fmu/in/vehicle_gps_position";
       }
       else{
         px4_gps_ros_topic = "/" +  _px4_ns + "/fmu/in/vehicle_gps_position";
         px4_all_hover_topic = "/" +  _px4_ns + "/fmu/out/all_hover";
+        px4_attack_topic =  "/" +  _px4_ns + "/attack_flag";
       }
       RCLCPP_INFO(this->get_logger(),"PX4 GPS Topic: %s", px4_gps_ros_topic.c_str());
 
@@ -326,8 +328,7 @@ class PX4GPSXrcePublisher : public rclcpp::Node
       auto qos_ = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, qos_profile.depth), qos_profile);
       
       gps_publisher_ = this->create_publisher<px4_msgs::msg::SensorGps>(px4_gps_ros_topic, 10);  
-      attack_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
-        "/attack_flag", 10, std::bind(&PX4GPSXrcePublisher::attackFlagCallback, this, std::placeholders::_1));      
+      attack_flag_publisher_ = this->create_publisher<std_msgs::msg::Bool>(px4_attack_topic, 10);      
       detector_flag_subscriber_ = this->create_subscription<offboard_detector::msg::DetectorOutput>(
         "/px4_1/detector/out/observer_output", qos_, std::bind(&PX4GPSXrcePublisher::detectorFlagCallback, this, std::placeholders::_1));
       all_hover_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
@@ -376,30 +377,28 @@ class PX4GPSXrcePublisher : public rclcpp::Node
         sensor_gps.vel_e_m_s = navsat.velocity_east();
         sensor_gps.vel_d_m_s = -navsat.velocity_up();
         sensor_gps.cog_rad = atan2(navsat.velocity_east(), navsat.velocity_north());
-        if (attack_flag == 1 )//&& attack_flag == 0)
-        {
-          sensor_gps.latitude_deg = spoofer_latitude;
-          sensor_gps.longitude_deg = spoofer_longitude;
-        }
-
+        
+        auto attack_flag = std_msgs::msg::Bool();
         if (all_hover==1 && hover_flag ==0)
         {
           start_time = time_us;
           hover_flag = 1;
+          attack_flag.data = false;
         }
         if (hover_flag == 1)
         {
           time_offset = std::round(((time_us - start_time)*1e-6)/0.001)*0.001;  
-          //RCLCPP_INFO(this->get_logger(),"Time Offset: %f", time_offset);          
+          double east, north, up, lat, lon, alt;
+            
+          navsat_conv->geodetic2Enu(navsat.latitude_deg(),navsat.longitude_deg(),navsat.altitude(), &east, &north, &up);
+          RCLCPP_INFO(this->get_logger(),"Time Offset: %f enu: %f%f%f", time_offset, east, north, up);          
          
           if (attack_idx < _attack_sequence.size() && time_offset > _attack_sequence[attack_idx].time_t)
           {
             RCLCPP_INFO(this->get_logger(),"Time Offset: %f \t %f", time_offset ,_attack_sequence[attack_idx].time_t );          
             RCLCPP_INFO(this->get_logger(),"Old LatLonAlt: %f \t %f \t %f", sensor_gps.latitude_deg , sensor_gps.longitude_deg, sensor_gps.altitude_msl_m);  
             
-            double east, north, up, lat, lon, alt;
-            
-            navsat_conv->geodetic2Enu(navsat.latitude_deg(),navsat.longitude_deg(),navsat.altitude(), &east, &north, &up);
+            attack_flag.data = true;
             east = east + _attack_sequence[attack_idx].x;
             north = north + _attack_sequence[attack_idx].y;
             up = up + _attack_sequence[attack_idx].z;
@@ -430,6 +429,7 @@ class PX4GPSXrcePublisher : public rclcpp::Node
         sensor_gps.satellites_used = 10;
         count++;
         gps_publisher_->publish(sensor_gps);
+        attack_flag_publisher_->publish(attack_flag);
     }
     
     void attackFlagCallback(const std_msgs::msg::Bool::SharedPtr msg)
@@ -457,7 +457,7 @@ class PX4GPSXrcePublisher : public rclcpp::Node
     }
   
     rclcpp::Publisher<px4_msgs::msg::SensorGps>::SharedPtr gps_publisher_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr attack_flag_subscriber_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr attack_flag_publisher_;
     rclcpp::Subscription<offboard_detector::msg::DetectorOutput>::SharedPtr detector_flag_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr all_hover_subscriber_;
 
