@@ -74,7 +74,7 @@ def generate_launch_description():
     falsi_config = os.path.join(
         get_package_share_directory('px4_gps'),
         'config',
-        'falsi.yaml'
+        'falsi_ro_col.yaml'
     )
     mavros_gps_node = Node(
            package='px4_gps',

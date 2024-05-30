@@ -1,0 +1,5 @@
+px4_gps_pub_xrce:
+  ros__parameters:
+    attack_parameters: [
+      3.60, -4.27, 3.39, 0.0, 3.0,
+    ]
