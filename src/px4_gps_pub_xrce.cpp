@@ -269,8 +269,14 @@ class PX4GPSXrcePublisher : public rclcpp::Node
       std::string _model_name = this->get_parameter("gz_model_name").as_string();
       std::string _spoofer_model_name = this->get_parameter("gz_spoofer_model_name").as_string();
       this->declare_parameter<std::vector<double>>("attack_parameters",std::vector<double>{} );
+      this->declare_parameter("nominal", 0);
+      this->declare_parameter("num_attack_msgs", 10);
+
       std::vector<double> attack_parameters;
       this->get_parameter("attack_parameters", attack_parameters);
+
+      nominal_flag = this->get_parameter("nominal").as_int();
+      num_attack_msgs = this->get_parameter("num_attack_msgs").as_int();
       //std::vector<double> attack_parameters = this->get_parameter("attack_parameters").as_double_array();
       RCLCPP_INFO(this->get_logger(),"Size: %ld", attack_parameters.size());
       
@@ -338,7 +344,7 @@ class PX4GPSXrcePublisher : public rclcpp::Node
       hover_flag = 0;
       time_offset = 0.0;
       attack_idx = 0;
-      attack_counter = 10;
+      attack_counter = num_attack_msgs; // Setting the number of msgs to used for attack
      
       double home_lat = 24.484043629238872;
       double home_lon = 54.36068616768677;
@@ -391,32 +397,37 @@ class PX4GPSXrcePublisher : public rclcpp::Node
           double east, north, up, lat, lon, alt;
             
           navsat_conv->geodetic2Enu(navsat.latitude_deg(),navsat.longitude_deg(),navsat.altitude(), &east, &north, &up);
-          RCLCPP_INFO(this->get_logger(),"Time Offset: %f enu: %f%f%f", time_offset, east, north, up);          
-         
-          if (attack_idx < _attack_sequence.size() && time_offset > _attack_sequence[attack_idx].time_t)
+          RCLCPP_INFO(this->get_logger(),"Nominal: %d Time Offset: %f enu: %f%f%f", nominal_flag, time_offset, east, north, up);          
+          // Check nominal flag for nominal run otherwise attack
+          if (nominal_flag == 0)
           {
-            RCLCPP_INFO(this->get_logger(),"Time Offset: %f \t %f", time_offset ,_attack_sequence[attack_idx].time_t );          
-            RCLCPP_INFO(this->get_logger(),"Old LatLonAlt: %f \t %f \t %f", sensor_gps.latitude_deg , sensor_gps.longitude_deg, sensor_gps.altitude_msl_m);  
-            
-            attack_flag.data = true;
-            east = east + _attack_sequence[attack_idx].x;
-            north = north + _attack_sequence[attack_idx].y;
-            up = up + _attack_sequence[attack_idx].z;
-            navsat_conv->enu2Geodetic(east, north, up, &lat, &lon, &alt);
-
-            sensor_gps.latitude_deg  = lat;
-            sensor_gps.longitude_deg =  lon;
-            sensor_gps.altitude_msl_m = alt;
-            
-            RCLCPP_INFO(this->get_logger(),"Attack LatLonAlt: %f \t %f \t %f", sensor_gps.latitude_deg , sensor_gps.longitude_deg, sensor_gps.altitude_msl_m);  
-
-            attack_counter--;
-            if (attack_counter == 0 )
+            if (attack_idx < _attack_sequence.size() && time_offset > _attack_sequence[attack_idx].time_t)
             {
-              attack_counter = 10;
-              attack_idx ++;
+              RCLCPP_INFO(this->get_logger(),"Time Offset: %f \t %f", time_offset ,_attack_sequence[attack_idx].time_t );          
+              RCLCPP_INFO(this->get_logger(),"Old LatLonAlt: %f \t %f \t %f", sensor_gps.latitude_deg , sensor_gps.longitude_deg, sensor_gps.altitude_msl_m);  
+              
+              attack_flag.data = true;
+              east = east + _attack_sequence[attack_idx].x;
+              north = north + _attack_sequence[attack_idx].y;
+              up = up + _attack_sequence[attack_idx].z;
+              navsat_conv->enu2Geodetic(east, north, up, &lat, &lon, &alt);
+
+              sensor_gps.latitude_deg  = lat;
+              sensor_gps.longitude_deg =  lon;
+              sensor_gps.altitude_msl_m = alt;
+              
+              RCLCPP_INFO(this->get_logger(),"Attack LatLonAlt: %f \t %f \t %f", sensor_gps.latitude_deg , sensor_gps.longitude_deg, sensor_gps.altitude_msl_m);  
+
+              attack_counter--;
+              if (attack_counter == 0 )
+              {
+                //Resetting the attack counter for the next attack
+                attack_counter = num_attack_msgs;
+                attack_idx ++;
+              }
             }
           }
+          
         }
         sensor_gps.timestamp_time_relative = 0;
         sensor_gps.heading = NAN;
@@ -477,6 +488,9 @@ class PX4GPSXrcePublisher : public rclcpp::Node
     std::vector<Attack> _attack_sequence;
     size_t attack_idx;
     int attack_counter;
+    // Always attack, no attack when set to 1
+    int nominal_flag = 0;
+    int num_attack_msgs=0;
     NavSatConverter *navsat_conv = new NavSatConverter();
     
 };
