@@ -1,0 +1,9 @@
+px4_gps_pub_xrce:
+  ros__parameters:
+    nominal: 0
+    num_attack_msgs: 20
+    attack_parameters: [
+      1.67, -0.005, 1.52, 0.0, 2.0,
+      19.49, 4.21, 0.33, 0.0, 2.0,
+    ]
+    
